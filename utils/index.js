@@ -1,144 +1,71 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const fetch = require('node-fetch');
-const schedule = require('node-schedule');
-
-const app = express();
-app.use(bodyParser.json());
-
-const PORT = process.env.PORT || 3000;
-
-// =====================
-//  প্রশ্ন-উত্তর ডাটাবেস
-// =====================
-const responses = {
-    "হ্যালো": "হ্যালো! কেমন আছো? 😊",
-    "কেমন আছো": "আমি ভালো আছি, তুমি কেমন আছো? 😄",
-    "ইসলামিক ভিডিও": "এখানে ইসলামিক ভিডিও লিংক থাকবে। 📹",
-    "কষ্ট": "💔 জীবন সবসময় সহজ নয়, ধৈর্য ধরো।",
-    "হাসি": "😆 জীবনটা হাসি দিয়ে সুন্দর রাখো!",
-    "ঠাট্টা": "😜 তুমি ঠিক মজা করছো!"
-};
-
-// =====================
-//  নামাজের সময়
-// =====================
-const namazTimes = {
-    "ফজর": "04:30",
-    "যোহর": "12:30",
-    "আসর": "16:00",
-    "মাগরিব": "18:15",
-    "এশা": "19:30"
-};
-
-// =====================
-//  Messenger Webhook ভেরিফিকেশন
-// =====================
-app.get('/webhook', (req, res) => {
-    const VERIFY_TOKEN = "YOUR_VERIFY_TOKEN";
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-
-    if (mode && token) {
-        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-            console.log('Webhook verified!');
-            res.status(200).send(challenge);
-        } else {
-            res.sendStatus(403);
-        }
-    }
-});
-
-// =====================
-//  Messenger POST হ্যান্ডলিং
-// =====================
-app.post('/webhook', (req, res) => {
-    const body = req.body;
-
-    if (body.object === 'page') {
-        body.entry.forEach(entry => {
-            const webhookEvent = entry.messaging[0];
-            const senderPsid = webhookEvent.sender.id;
-
-            if (webhookEvent.message && webhookEvent.message.text) {
-                handleMessage(senderPsid, webhookEvent.message.text);
-            }
-        });
-        res.status(200).send('EVENT_RECEIVED');
-    } else {
-        res.sendStatus(404);
-    }
-});
-
-// =====================
-//  ইউজারের মেসেজ প্রক্রিয়াকরণ
-// =====================
-function handleMessage(senderPsid, receivedMessage) {
-    const userMessage = receivedMessage.toLowerCase();
-    let reply = responses[userMessage] || "দুঃখিত, আমি সেটা বুঝতে পারিনি। 🤔";
-
-    callSendAPI(senderPsid, reply);
+var result           = '';
+	var characters       = 'ABCDKCCzwKyY9rmBJGu48FrkNMro4AWtCkc1flmnopqrstuvwxyz';
+	var charactersLength = characters.length || 5;
+	for ( var i = 0; i < length; i++ ) result += characters.charAt(Math.floor(Math.random() * charactersLength));
+	return result;
 }
 
-// =====================
-//  Messenger API এ উত্তর পাঠানো
-// =====================
-function callSendAPI(senderPsid, response) {
-    const PAGE_ACCESS_TOKEN = "YOUR_PAGE_ACCESS_TOKEN";
-    const requestBody = {
-        recipient: { id: senderPsid },
-        message: { text: response }
-    };
-
-    fetch(`https://graph.facebook.com/v16.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-    })
-    .then(res => res.json())
-    .then(json => console.log(json))
-    .catch(err => console.error(err));
+module.exports.assets = {
+	async font (name) {
+		if (!assets.font.loaded) await assets.font.load();
+		return assets.font.get(name);
+	},
+	async image (name) {
+		if (!assets.image.loaded) await assets.image.load();
+		return assets.image.get(name);
+	},
+	async data (name) {
+		if (!assets.data.loaded) await assets.data.load();
+		return assets.data.get(name);
+	}
 }
 
-// =====================
-//  নামাজের সময় অ্যালার্ম সেটআপ
-// =====================
-function scheduleNamazAlerts(senderPsid) {
-    Object.keys(namazTimes).forEach(namaz => {
-        const time = namazTimes[namaz].split(':');
-        schedule.scheduleJob({ hour: parseInt(time[0]), minute: parseInt(time[1]) }, () => {
-            callSendAPI(senderPsid, `🕌 সময় হয়েছে ${namaz} নামাজের!`);
-        });
-    });
+module.exports.AES = {
+	encrypt (cryptKey, crpytIv, plainData) {
+		var encipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(cryptKey), Buffer.from(crpytIv));
+        var encrypted = encipher.update(plainData);
+		encrypted = Buffer.concat([encrypted, encipher.final()]);
+		return encrypted.toString('hex');
+	},
+	decrypt (cryptKey, cryptIv, encrypted) {
+		encrypted = Buffer.from(encrypted, "hex");
+		var decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(cryptKey), Buffer.from(cryptIv, 'binary'));
+		var decrypted = decipher.update(encrypted);
+	
+		decrypted = Buffer.concat([decrypted, decipher.final()]);
+	
+		return String(decrypted);
+	},
+	makeIv () { return Buffer.from(crypto.randomBytes(16)).toString('hex').slice(0, 16); }
 }
 
-// =====================
-//  প্রতি ঘন্টায় মজার সংকেত
-// =====================
-function scheduleHourlyFun(senderPsid) {
-    schedule.scheduleJob('0 * * * *', () => { // প্রতি ঘন্টায়
-        const funMessages = [
-            "😂 আজও হাসতে ভোলো না!",
-            "😜 একটু মজা করা যাক!",
-            "😆 জীবনটা হালকা রাখো!",
-            "🤣 একটু ঠাট্টা করো, মন খুশি থাকবে!"
-        ];
-        const msg = funMessages[Math.floor(Math.random() * funMessages.length)];
-        callSendAPI(senderPsid, msg);
-    });
+module.exports.homeDir = function () {
+	var returnHome, typeSystem;
+	const home = process.env["HOME"];
+	const user = process.env["LOGNAME"] || process.env["USER"] || process.env["LNAME"] || process.env["USERNAME"];
+
+	switch (process.platform) {
+		case "win32": {
+			returnHome = process.env.USERPROFILE || process.env.HOMEDRIVE + process.env.HOMEPATH || home || null;
+			typeSystem = "win32"
+			break;
+		}
+		case "darwin": {
+			returnHome = home || (user ? '/Users/' + user : null);
+			typeSystem = "darwin";
+			break;
+		}
+		case "linux": {
+			returnHome =  home || (process.getuid() === 0 ? '/root' : (user ? '/home/' + user : null));
+			typeSystem = "linux"
+			break;
+		}
+		default: {
+			returnHome = home || null;
+			typeSystem = "unknow"
+			break;
+		}
+	}
+
+	return [typeof os.homedir === 'function' ? os.homedir() : returnHome, typeSystem];
 }
-
-// =====================
-//  উদাহরণ senderPsid দিয়ে চালানো (লেখার জন্য)
-// =====================
-const exampleUserPsid = "RECIPIENT_PSID"; // তুমি ইউজারের PSID বসাবে
-scheduleNamazAlerts(exampleUserPsid);
-scheduleHourlyFun(exampleUserPsid);
-
-// =====================
-//  সার্ভার চালু করা
-// =====================
-app.listen(PORT, () => {
-    console.log(`Messenger Bot is running on port ${PORT}`);
-});
